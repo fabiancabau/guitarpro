@@ -7,6 +7,7 @@ class FakeEngine implements TabEngine {
   callbacks: TabEngineCallbacks = {};
   selectedTrack: string | null = null;
   lastAutoscroll = true;
+  lastPitchShift = 0;
   lastTempo = 100;
   lastVolume = 100;
   lastTrackVolume: { trackId: string; volumePercent: number } | null = null;
@@ -57,6 +58,10 @@ class FakeEngine implements TabEngine {
 
   setAutoscroll(enabled: boolean): void {
     this.lastAutoscroll = enabled;
+  }
+
+  setPitchShift(semitones: number): void {
+    this.lastPitchShift = semitones;
   }
 
   setTempo(percent: number): void {
@@ -134,6 +139,8 @@ describe('App integration', () => {
     fireEvent.change(tempoSlider, { target: { value: '140' } });
 
     const playbackControls = screen.getByRole('region', { name: 'Playback controls' });
+    const pitchSlider = within(playbackControls).getByLabelText(/pitch \(/i);
+    fireEvent.change(pitchSlider, { target: { value: '5' } });
     const volumeSlider = within(playbackControls).getByLabelText(/volume \(30%\)/i);
     fireEvent.change(volumeSlider, { target: { value: '55' } });
     await user.click(within(playbackControls).getByLabelText(/autoscroll playhead/i));
@@ -146,6 +153,7 @@ describe('App integration', () => {
 
     expect(engine.lastTempo).toBeGreaterThan(0);
     expect(engine.lastAutoscroll).toBe(false);
+    expect(engine.lastPitchShift).toBe(5);
     expect(engine.lastVolume).toBe(55);
     expect(engine.lastTrackVolume).toEqual({ trackId: '0', volumePercent: 42 });
   });

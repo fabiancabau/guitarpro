@@ -5,6 +5,7 @@ interface TransportControlsProps {
   disabled: boolean;
   isPlaying: boolean;
   isAutoscrollEnabled: boolean;
+  pitchShiftSemitones: number;
   tempoPercent: number;
   volumePercent: number;
   totalBars: number;
@@ -12,15 +13,29 @@ interface TransportControlsProps {
   currentBar: number | null;
   onTogglePlayback: () => void;
   onAutoscrollChange: (enabled: boolean) => void;
+  onPitchShiftChange: (semitones: number) => void;
   onTempoChange: (tempoPercent: number) => void;
   onVolumeChange: (volumePercent: number) => void;
   onLoopChange: (range: LoopRange | null) => void;
+}
+
+function formatPitchShiftSemitones(semitones: number): string {
+  if (semitones > 0) {
+    return `+${semitones} st`;
+  }
+
+  if (semitones < 0) {
+    return `${semitones} st`;
+  }
+
+  return '0 st';
 }
 
 export function TransportControls({
   disabled,
   isPlaying,
   isAutoscrollEnabled,
+  pitchShiftSemitones,
   tempoPercent,
   volumePercent,
   totalBars,
@@ -28,6 +43,7 @@ export function TransportControls({
   currentBar,
   onTogglePlayback,
   onAutoscrollChange,
+  onPitchShiftChange,
   onTempoChange,
   onVolumeChange,
   onLoopChange
@@ -68,6 +84,19 @@ export function TransportControls({
           value={tempoPercent}
           disabled={disabled}
           onChange={(event) => onTempoChange(Number(event.currentTarget.value))}
+        />
+      </label>
+
+      <label className="control-group">
+        <span className="control-group__label">Pitch ({formatPitchShiftSemitones(pitchShiftSemitones)})</span>
+        <input
+          type="range"
+          min={-12}
+          max={12}
+          step={1}
+          value={pitchShiftSemitones}
+          disabled={disabled}
+          onChange={(event) => onPitchShiftChange(Number(event.currentTarget.value))}
         />
       </label>
 
@@ -126,6 +155,7 @@ export function TransportControls({
 
       <p className="transport-controls__status">
         {currentBar ? `Bar ${currentBar}` : 'Bar -'}
+        {pitchShiftSemitones !== 0 ? ` · Pitch ${formatPitchShiftSemitones(pitchShiftSemitones)}` : ''}
         {loopRange ? ` · Loop ${loopRange.startBar}-${loopRange.endBar}` : ''}
       </p>
     </section>

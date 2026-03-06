@@ -69,6 +69,7 @@ export function App({ engineFactory }: AppProps) {
             disabled={!state.session}
             isPlaying={state.isPlaying}
             isAutoscrollEnabled={state.isAutoscrollEnabled}
+            pitchShiftSemitones={state.pitchShiftSemitones}
             tempoPercent={state.tempoPercent}
             volumePercent={state.volumePercent}
             loopRange={state.loopRange}
@@ -76,6 +77,7 @@ export function App({ engineFactory }: AppProps) {
             currentBar={state.position?.barIndex !== undefined ? state.position.barIndex + 1 : null}
             onTogglePlayback={reader.togglePlayback}
             onAutoscrollChange={reader.setAutoscrollEnabled}
+            onPitchShiftChange={reader.setPitchShiftSemitones}
             onTempoChange={reader.setTempoPercent}
             onVolumeChange={reader.setVolumePercent}
             onLoopChange={reader.setLoopRange}

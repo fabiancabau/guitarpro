@@ -5,7 +5,7 @@ import type {
   TabEngine,
   TabEngineCallbacks
 } from '@domain/index';
-import { clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from '@lib/playback';
+import { clampPitchShiftSemitones, clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from '@lib/playback';
 
 const MOCK_SESSION: ScoreSession = {
   meta: {
@@ -29,6 +29,7 @@ export class MockTabEngine implements TabEngine {
   private callbacks: TabEngineCallbacks = {};
   private isPlaying = false;
   private isAutoscrollEnabled = true;
+  private pitchShiftSemitones = 0;
   private intervalId: number | null = null;
   private currentTick = 0;
   private tempoPercent = 100;
@@ -102,6 +103,10 @@ export class MockTabEngine implements TabEngine {
     this.isAutoscrollEnabled = enabled;
   }
 
+  setPitchShift(semitones: number): void {
+    this.pitchShiftSemitones = clampPitchShiftSemitones(semitones);
+  }
+
   setTempo(percent: number): void {
     this.tempoPercent = clampTempoPercent(percent);
   }
@@ -125,6 +130,7 @@ export class MockTabEngine implements TabEngine {
 
   destroy(): void {
     void this.isAutoscrollEnabled;
+    void this.pitchShiftSemitones;
     void this.volumePercent;
     void this.trackVolumes;
     this.pause();

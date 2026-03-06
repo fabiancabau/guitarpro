@@ -1,10 +1,16 @@
-import { clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from './playback';
+import { clampPitchShiftSemitones, clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from './playback';
 
 describe('playback helpers', () => {
   it('clamps tempo range', () => {
     expect(clampTempoPercent(10)).toBe(30);
     expect(clampTempoPercent(120)).toBe(120);
     expect(clampTempoPercent(500)).toBe(200);
+  });
+
+  it('clamps pitch shift range', () => {
+    expect(clampPitchShiftSemitones(-30)).toBe(-12);
+    expect(clampPitchShiftSemitones(7)).toBe(7);
+    expect(clampPitchShiftSemitones(30)).toBe(12);
   });
 
   it('normalizes loop ranges within bar limits', () => {

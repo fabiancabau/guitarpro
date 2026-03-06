@@ -10,7 +10,7 @@ import type {
 } from '@domain/index';
 import { mapEngineError } from '@lib/errorMapping';
 import { readFileAsArrayBuffer, validateGuitarProFile } from '@lib/fileValidation';
-import { clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from '@lib/playback';
+import { clampPitchShiftSemitones, clampTempoPercent, normalizeLoopRange, normalizeProgress, progressToTicks } from '@lib/playback';
 
 type ReaderStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -23,6 +23,7 @@ interface TabReaderState {
   position: PlaybackPosition | null;
   isPlaying: boolean;
   isAutoscrollEnabled: boolean;
+  pitchShiftSemitones: number;
   tempoPercent: number;
   volumePercent: number;
   loopRange: LoopRange | null;
@@ -38,6 +39,7 @@ const INITIAL_STATE: TabReaderState = {
   position: null,
   isPlaying: false,
   isAutoscrollEnabled: true,
+  pitchShiftSemitones: 0,
   tempoPercent: 100,
   volumePercent: 30,
   loopRange: null,
@@ -52,6 +54,7 @@ type Action =
   | { type: 'playback'; isPlaying: boolean }
   | { type: 'position'; position: PlaybackPosition }
   | { type: 'autoscroll'; enabled: boolean }
+  | { type: 'pitch-shift'; semitones: number }
   | { type: 'tempo'; tempoPercent: number }
   | { type: 'volume'; volumePercent: number }
   | { type: 'track-volume'; trackId: string; volumePercent: number }
@@ -107,6 +110,8 @@ function reducer(state: TabReaderState, action: Action): TabReaderState {
       return { ...state, position: action.position };
     case 'autoscroll':
       return { ...state, isAutoscrollEnabled: action.enabled };
+    case 'pitch-shift':
+      return { ...state, pitchShiftSemitones: action.semitones };
     case 'tempo':
       return { ...state, tempoPercent: action.tempoPercent };
     case 'volume':
@@ -166,12 +171,13 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       try {
         await engine.attach(container);
         engine.setAutoscroll(state.isAutoscrollEnabled);
+        engine.setPitchShift(state.pitchShiftSemitones);
         engine.setVolume(state.volumePercent);
       } catch (error) {
         dispatch({ type: 'error', error: mapEngineError(error) });
       }
     },
-    [engine, state.isAutoscrollEnabled, state.volumePercent]
+    [engine, state.isAutoscrollEnabled, state.pitchShiftSemitones, state.volumePercent]
   );
 
   const openFile = useCallback(
@@ -187,6 +193,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       try {
         const buffer = await readFileAsArrayBuffer(file);
         const session = await engine.load(buffer);
+        engine.setPitchShift(state.pitchShiftSemitones);
         engine.setVolume(state.volumePercent);
 
         for (const track of session.tracks) {
@@ -202,7 +209,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
         dispatch({ type: 'error', error: mapEngineError(error) });
       }
     },
-    [engine, state.volumePercent]
+    [engine, state.pitchShiftSemitones, state.volumePercent]
   );
 
   const togglePlayback = useCallback(() => {
@@ -236,6 +243,15 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
     (enabled: boolean) => {
       engine.setAutoscroll(enabled);
       dispatch({ type: 'autoscroll', enabled });
+    },
+    [engine]
+  );
+
+  const setPitchShiftSemitones = useCallback(
+    (value: number) => {
+      const clamped = clampPitchShiftSemitones(value);
+      engine.setPitchShift(clamped);
+      dispatch({ type: 'pitch-shift', semitones: clamped });
     },
     [engine]
   );
@@ -288,6 +304,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       togglePlayback,
       seekByProgress,
       setAutoscrollEnabled,
+      setPitchShiftSemitones,
       setTempoPercent,
       setVolumePercent,
       setTrackVolume,
@@ -302,6 +319,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       seekByProgress,
       selectTrack,
       setAutoscrollEnabled,
+      setPitchShiftSemitones,
       setLoopRange,
       setTempoPercent,
       setTrackVolume,

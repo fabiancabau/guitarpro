@@ -9,6 +9,7 @@ export interface TabEngine {
   pause(): void;
   seek(ticksOrMs: number): void;
   setAutoscroll(enabled: boolean): void;
+  setPitchShift(semitones: number): void;
   setTempo(percent: number): void;
   setVolume(percent: number): void;
   setTrackVolume(trackId: string, percent: number): void;

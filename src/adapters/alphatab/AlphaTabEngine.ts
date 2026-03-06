@@ -8,7 +8,7 @@ import type {
 } from '@domain/index';
 import { ReaderEngineError } from '@domain/errors';
 import { mapEngineError } from '@lib/errorMapping';
-import { clampTempoPercent, normalizeProgress, normalizeLoopRange } from '@lib/playback';
+import { clampPitchShiftSemitones, clampTempoPercent, normalizeProgress, normalizeLoopRange } from '@lib/playback';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -36,6 +36,7 @@ type AlphaTabApiLike = {
   playPause: () => void;
   updateSettings?: () => void;
   changeTrackVolume?: (tracks: number[] | number, volume: number) => void;
+  changeTrackTranspositionPitch?: (tracks: unknown[], semitones: number) => void;
   renderTracks: (tracks: unknown[]) => void;
   score: UnknownRecord | null;
   settings: AlphaTabSettingsLike;
@@ -70,6 +71,7 @@ export class AlphaTabEngine implements TabEngine {
   private barStartTicks: number[] = [];
   private container: HTMLElement | null = null;
   private isAutoscrollEnabled = true;
+  private pitchShiftSemitones = 0;
   private unsubscribeHandlers: Array<() => void> = [];
   private pendingTrackId: string | null = null;
   private hasRenderedScore = false;
@@ -112,6 +114,7 @@ export class AlphaTabEngine implements TabEngine {
     try {
       const session = await this.awaitLoad(api, new Uint8Array(buffer));
       this.session = session;
+      this.applyPitchShift(api);
       this.callbacks.onReady?.(session);
       return session;
     } catch (error) {
@@ -141,6 +144,14 @@ export class AlphaTabEngine implements TabEngine {
 
     if (this.api) {
       this.applyAutoscrollSetting(this.api);
+    }
+  }
+
+  setPitchShift(semitones: number): void {
+    this.pitchShiftSemitones = clampPitchShiftSemitones(semitones);
+
+    if (this.api) {
+      this.applyPitchShift(this.api);
     }
   }
 
@@ -272,6 +283,14 @@ export class AlphaTabEngine implements TabEngine {
     api.settings.player.scrollElement = this.container?.parentElement ?? this.container ?? api.settings.player.scrollElement;
     api.settings.player.scrollMode = this.resolveScrollMode();
     api.updateSettings?.();
+  }
+
+  private applyPitchShift(api: AlphaTabApiLike): void {
+    if (!api.score || !Array.isArray(api.score.tracks) || typeof api.changeTrackTranspositionPitch !== 'function') {
+      return;
+    }
+
+    api.changeTrackTranspositionPitch(api.score.tracks, this.pitchShiftSemitones);
   }
 
   private resolveScrollMode(): number {
