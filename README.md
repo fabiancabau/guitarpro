@@ -29,5 +29,5 @@ Client-side Guitar Pro tab reader built with React + Vite + TypeScript. The app 
 
 ## Notes
 
-- `postinstall` copies required alphaTab WASM/font/soundfont assets into `public/alphatab`.
+- The official `@coderline/alphatab-vite` plugin handles worker/worklet wiring and copies AlphaTab font/soundfont assets from `node_modules` into `public/` when Vite runs.
 - E2E tests use `?mockEngine=1` to run deterministic UI flows without real GP fixtures.

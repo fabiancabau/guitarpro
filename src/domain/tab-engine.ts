@@ -8,6 +8,7 @@ export interface TabEngine {
   play(): void;
   pause(): void;
   seek(ticksOrMs: number): void;
+  setAutoscroll(enabled: boolean): void;
   setTempo(percent: number): void;
   setVolume(percent: number): void;
   setTrackVolume(trackId: string, percent: number): void;

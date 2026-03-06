@@ -13,8 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "postinstall": "node ./scripts/copy-alphatab-assets.mjs"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@coderline/alphatab": "^1.8.1",

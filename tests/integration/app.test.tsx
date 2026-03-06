@@ -6,6 +6,7 @@ import type { LoopRange, ScoreSession, TabEngine, TabEngineCallbacks } from '@do
 class FakeEngine implements TabEngine {
   callbacks: TabEngineCallbacks = {};
   selectedTrack: string | null = null;
+  lastAutoscroll = true;
   lastTempo = 100;
   lastVolume = 100;
   lastTrackVolume: { trackId: string; volumePercent: number } | null = null;
@@ -52,6 +53,10 @@ class FakeEngine implements TabEngine {
       barIndex: 8,
       beatIndex: 0
     });
+  }
+
+  setAutoscroll(enabled: boolean): void {
+    this.lastAutoscroll = enabled;
   }
 
   setTempo(percent: number): void {
@@ -131,6 +136,7 @@ describe('App integration', () => {
     const playbackControls = screen.getByRole('region', { name: 'Playback controls' });
     const volumeSlider = within(playbackControls).getByLabelText(/volume \(30%\)/i);
     fireEvent.change(volumeSlider, { target: { value: '55' } });
+    await user.click(within(playbackControls).getByLabelText(/autoscroll playhead/i));
 
     const leadTrackVolume = screen.getByLabelText('Lead volume');
     fireEvent.change(leadTrackVolume, { target: { value: '42' } });
@@ -139,6 +145,7 @@ describe('App integration', () => {
     fireEvent.change(timeline, { target: { value: '500' } });
 
     expect(engine.lastTempo).toBeGreaterThan(0);
+    expect(engine.lastAutoscroll).toBe(false);
     expect(engine.lastVolume).toBe(55);
     expect(engine.lastTrackVolume).toEqual({ trackId: '0', volumePercent: 42 });
   });

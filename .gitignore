@@ -5,3 +5,6 @@
 test-results
 .vscode
 .DS_Store
+public/alphatab
+public/font
+public/soundfont

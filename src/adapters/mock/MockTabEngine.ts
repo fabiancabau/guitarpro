@@ -28,6 +28,7 @@ const MOCK_SESSION: ScoreSession = {
 export class MockTabEngine implements TabEngine {
   private callbacks: TabEngineCallbacks = {};
   private isPlaying = false;
+  private isAutoscrollEnabled = true;
   private intervalId: number | null = null;
   private currentTick = 0;
   private tempoPercent = 100;
@@ -97,6 +98,10 @@ export class MockTabEngine implements TabEngine {
     this.callbacks.onPositionChange?.(this.positionPayload());
   }
 
+  setAutoscroll(enabled: boolean): void {
+    this.isAutoscrollEnabled = enabled;
+  }
+
   setTempo(percent: number): void {
     this.tempoPercent = clampTempoPercent(percent);
   }
@@ -119,6 +124,7 @@ export class MockTabEngine implements TabEngine {
   }
 
   destroy(): void {
+    void this.isAutoscrollEnabled;
     void this.volumePercent;
     void this.trackVolumes;
     this.pause();

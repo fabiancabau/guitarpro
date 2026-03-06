@@ -21,15 +21,24 @@ type PlaybackRangeLike = {
   endTick: number;
 };
 
+type AlphaTabSettingsLike = {
+  player: {
+    scrollElement: string | HTMLElement;
+    scrollMode: number;
+  };
+};
+
 type AlphaTabApiLike = {
   load: (scoreData: unknown, trackIndexes?: number[]) => boolean;
   destroy: () => void;
   play: () => boolean;
   pause: () => void;
   playPause: () => void;
+  updateSettings?: () => void;
   changeTrackVolume?: (tracks: number[] | number, volume: number) => void;
   renderTracks: (tracks: unknown[]) => void;
   score: UnknownRecord | null;
+  settings: AlphaTabSettingsLike;
   tickPosition: number;
   playbackRange: PlaybackRangeLike | null;
   isLooping: boolean;
@@ -42,8 +51,14 @@ type AlphaTabApiLike = {
   error: EventEmitterLike<Error>;
 };
 
+type ScrollModeLike = {
+  Off: number;
+  Continuous: number;
+};
+
 type AlphaTabModuleLike = {
   AlphaTabApi?: new (container: HTMLElement, settings: UnknownRecord) => AlphaTabApiLike;
+  ScrollMode?: ScrollModeLike;
 };
 
 const LOAD_TIMEOUT_MS = 15_000;
@@ -54,9 +69,14 @@ export class AlphaTabEngine implements TabEngine {
   private session: ScoreSession | null = null;
   private barStartTicks: number[] = [];
   private container: HTMLElement | null = null;
+  private isAutoscrollEnabled = true;
   private unsubscribeHandlers: Array<() => void> = [];
   private pendingTrackId: string | null = null;
   private hasRenderedScore = false;
+  private scrollMode = {
+    Off: 0,
+    Continuous: 1
+  };
 
   setCallbacks(callbacks: TabEngineCallbacks): void {
     this.callbacks = callbacks;
@@ -78,7 +98,9 @@ export class AlphaTabEngine implements TabEngine {
     }
 
     this.container = container;
+    this.scrollMode = module.ScrollMode ?? this.scrollMode;
     this.api = new module.AlphaTabApi(container, this.buildSettings(container));
+    this.applyAutoscrollSetting(this.api);
     this.bindCoreEvents();
   }
 
@@ -112,6 +134,14 @@ export class AlphaTabEngine implements TabEngine {
   seek(ticksOrMs: number): void {
     const api = this.requireApi();
     api.tickPosition = Math.max(0, Math.round(ticksOrMs));
+  }
+
+  setAutoscroll(enabled: boolean): void {
+    this.isAutoscrollEnabled = enabled;
+
+    if (this.api) {
+      this.applyAutoscrollSetting(this.api);
+    }
   }
 
   setTempo(percent: number): void {
@@ -198,6 +228,7 @@ export class AlphaTabEngine implements TabEngine {
     this.api = null;
     this.session = null;
     this.barStartTicks = [];
+    this.container = null;
     this.pendingTrackId = null;
     this.hasRenderedScore = false;
   }
@@ -211,6 +242,8 @@ export class AlphaTabEngine implements TabEngine {
   }
 
   private buildSettings(container: HTMLElement): UnknownRecord {
+    const scrollContainer = container.parentElement ?? container;
+
     return {
       core: {
         fontDirectory: '/font/'
@@ -225,13 +258,24 @@ export class AlphaTabEngine implements TabEngine {
       player: {
         enablePlayer: true,
         soundFont: '/soundfont/sonivox.sf2',
-        scrollElement: container,
+        scrollElement: scrollContainer,
+        scrollMode: this.resolveScrollMode(),
         enableCursor: true,
         enableAnimatedBeatCursor: true,
         enableElementHighlighting: true,
         enableUserInteraction: true
       }
     };
+  }
+
+  private applyAutoscrollSetting(api: AlphaTabApiLike): void {
+    api.settings.player.scrollElement = this.container?.parentElement ?? this.container ?? api.settings.player.scrollElement;
+    api.settings.player.scrollMode = this.resolveScrollMode();
+    api.updateSettings?.();
+  }
+
+  private resolveScrollMode(): number {
+    return this.isAutoscrollEnabled ? this.scrollMode.Continuous : this.scrollMode.Off;
   }
 
   private bindCoreEvents(): void {

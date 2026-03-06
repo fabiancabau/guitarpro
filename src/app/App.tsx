@@ -68,12 +68,14 @@ export function App({ engineFactory }: AppProps) {
             key={`${state.fileName ?? 'empty'}:${state.loopRange?.startBar ?? 'none'}:${state.loopRange?.endBar ?? 'none'}`}
             disabled={!state.session}
             isPlaying={state.isPlaying}
+            isAutoscrollEnabled={state.isAutoscrollEnabled}
             tempoPercent={state.tempoPercent}
             volumePercent={state.volumePercent}
             loopRange={state.loopRange}
             totalBars={state.session?.length.bars ?? 0}
             currentBar={state.position?.barIndex !== undefined ? state.position.barIndex + 1 : null}
             onTogglePlayback={reader.togglePlayback}
+            onAutoscrollChange={reader.setAutoscrollEnabled}
             onTempoChange={reader.setTempoPercent}
             onVolumeChange={reader.setVolumePercent}
             onLoopChange={reader.setLoopRange}

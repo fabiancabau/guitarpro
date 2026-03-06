@@ -4,12 +4,14 @@ import type { LoopRange } from '@domain/types';
 interface TransportControlsProps {
   disabled: boolean;
   isPlaying: boolean;
+  isAutoscrollEnabled: boolean;
   tempoPercent: number;
   volumePercent: number;
   totalBars: number;
   loopRange: LoopRange | null;
   currentBar: number | null;
   onTogglePlayback: () => void;
+  onAutoscrollChange: (enabled: boolean) => void;
   onTempoChange: (tempoPercent: number) => void;
   onVolumeChange: (volumePercent: number) => void;
   onLoopChange: (range: LoopRange | null) => void;
@@ -18,12 +20,14 @@ interface TransportControlsProps {
 export function TransportControls({
   disabled,
   isPlaying,
+  isAutoscrollEnabled,
   tempoPercent,
   volumePercent,
   totalBars,
   loopRange,
   currentBar,
   onTogglePlayback,
+  onAutoscrollChange,
   onTempoChange,
   onVolumeChange,
   onLoopChange
@@ -44,6 +48,16 @@ export function TransportControls({
       <button type="button" className="primary-button" onClick={onTogglePlayback} disabled={disabled}>
         {isPlaying ? 'Pause' : 'Play'}
       </button>
+
+      <label className="transport-controls__toggle">
+        <input
+          type="checkbox"
+          checked={isAutoscrollEnabled}
+          disabled={disabled}
+          onChange={(event) => onAutoscrollChange(event.currentTarget.checked)}
+        />
+        <span>Autoscroll playhead</span>
+      </label>
 
       <label className="control-group">
         <span className="control-group__label">Tempo ({tempoPercent}%)</span>

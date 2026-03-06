@@ -22,6 +22,7 @@ interface TabReaderState {
   trackVolumes: Record<string, number>;
   position: PlaybackPosition | null;
   isPlaying: boolean;
+  isAutoscrollEnabled: boolean;
   tempoPercent: number;
   volumePercent: number;
   loopRange: LoopRange | null;
@@ -36,6 +37,7 @@ const INITIAL_STATE: TabReaderState = {
   trackVolumes: {},
   position: null,
   isPlaying: false,
+  isAutoscrollEnabled: true,
   tempoPercent: 100,
   volumePercent: 30,
   loopRange: null,
@@ -49,6 +51,7 @@ type Action =
   | { type: 'clear-error' }
   | { type: 'playback'; isPlaying: boolean }
   | { type: 'position'; position: PlaybackPosition }
+  | { type: 'autoscroll'; enabled: boolean }
   | { type: 'tempo'; tempoPercent: number }
   | { type: 'volume'; volumePercent: number }
   | { type: 'track-volume'; trackId: string; volumePercent: number }
@@ -102,6 +105,8 @@ function reducer(state: TabReaderState, action: Action): TabReaderState {
       return { ...state, isPlaying: action.isPlaying };
     case 'position':
       return { ...state, position: action.position };
+    case 'autoscroll':
+      return { ...state, isAutoscrollEnabled: action.enabled };
     case 'tempo':
       return { ...state, tempoPercent: action.tempoPercent };
     case 'volume':
@@ -160,12 +165,13 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
     async (container: HTMLElement) => {
       try {
         await engine.attach(container);
+        engine.setAutoscroll(state.isAutoscrollEnabled);
         engine.setVolume(state.volumePercent);
       } catch (error) {
         dispatch({ type: 'error', error: mapEngineError(error) });
       }
     },
-    [engine, state.volumePercent]
+    [engine, state.isAutoscrollEnabled, state.volumePercent]
   );
 
   const openFile = useCallback(
@@ -226,6 +232,14 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
     [engine]
   );
 
+  const setAutoscrollEnabled = useCallback(
+    (enabled: boolean) => {
+      engine.setAutoscroll(enabled);
+      dispatch({ type: 'autoscroll', enabled });
+    },
+    [engine]
+  );
+
   const setVolumePercent = useCallback(
     (value: number) => {
       const clamped = Math.max(0, Math.min(100, Math.round(value)));
@@ -273,6 +287,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       openFile,
       togglePlayback,
       seekByProgress,
+      setAutoscrollEnabled,
       setTempoPercent,
       setVolumePercent,
       setTrackVolume,
@@ -280,6 +295,19 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       selectTrack,
       clearError
     }),
-    [attachContainer, clearError, openFile, seekByProgress, selectTrack, setLoopRange, setTempoPercent, setTrackVolume, setVolumePercent, state, togglePlayback]
+    [
+      attachContainer,
+      clearError,
+      openFile,
+      seekByProgress,
+      selectTrack,
+      setAutoscrollEnabled,
+      setLoopRange,
+      setTempoPercent,
+      setTrackVolume,
+      setVolumePercent,
+      state,
+      togglePlayback
+    ]
   );
 }

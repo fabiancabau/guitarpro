@@ -143,6 +143,18 @@ body {
   gap: 0.8rem;
 }
 
+.transport-controls__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+  color: #23425c;
+}
+
+.transport-controls__toggle input {
+  margin: 0;
+}
+
 .track-mixer {
   display: grid;
   gap: 0.65rem;
@@ -234,7 +246,7 @@ body {
 }
 
 .score-viewport {
-  min-height: 60vh;
+  height: clamp(32rem, 72vh, 56rem);
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 0.8rem;
@@ -251,6 +263,7 @@ body {
 
 .score-viewport__canvas {
   position: relative;
+  min-height: 0;
   overflow: auto;
   border: 1px solid #d4e2ed;
   border-radius: 0.7rem;
@@ -389,6 +402,6 @@ select {
   }
 
   .score-viewport {
-    min-height: 50vh;
+    height: clamp(24rem, 68vh, 42rem);
   }
 }
