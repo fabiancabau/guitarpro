@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '@app/App';
-import type { LoopRange, ScoreSession, TabEngine, TabEngineCallbacks } from '@domain/index';
+import type { ExternalMediaHandler, LoopRange, ScoreSession, TabEngine, TabEngineCallbacks } from '@domain/index';
+import type { CreateYouTubeMediaOptions, YouTubeMediaHandle } from '@lib/youtube';
 
 class FakeEngine implements TabEngine {
   callbacks: TabEngineCallbacks = {};
@@ -12,6 +13,9 @@ class FakeEngine implements TabEngine {
   lastVolume = 100;
   lastTrackVolume: { trackId: string; volumePercent: number } | null = null;
   lastLoop: LoopRange | null = null;
+  externalMediaHandler: ExternalMediaHandler | null = null;
+  externalMediaPosition = 0;
+  loadedSongTrackCount = 0;
 
   setCallbacks(callbacks: TabEngineCallbacks): void {
     this.callbacks = callbacks;
@@ -30,11 +34,17 @@ class FakeEngine implements TabEngine {
         { id: '0', name: 'Lead', volumePercent: 75 },
         { id: '1', name: 'Rhythm', volumePercent: 60 }
       ],
-      length: { bars: 16, durationTicks: 16_000 }
+      length: { bars: 16, durationTicks: 16_000 },
+      sync: { syncPointCount: 2 }
     };
 
     this.callbacks.onReady?.(session);
     return Promise.resolve(session);
+  }
+
+  loadSongsterrJson(tracks: unknown[]): Promise<ScoreSession> {
+    this.loadedSongTrackCount = tracks.length;
+    return this.load(new ArrayBuffer(0));
   }
 
   play(): void {
@@ -84,12 +94,40 @@ class FakeEngine implements TabEngine {
     this.selectedTrack = trackId;
   }
 
+  setExternalMediaHandler(handler: ExternalMediaHandler | null): void {
+    this.externalMediaHandler = handler;
+  }
+
+  updateExternalMediaPosition(currentTimeMs: number): void {
+    this.externalMediaPosition = currentTimeMs;
+  }
+
   destroy(): void {
     return;
   }
 }
 
 describe('App integration', () => {
+  it('loads the bundled song JSON through the local score engine', async () => {
+    const engine = new FakeEngine();
+    const user = userEvent.setup();
+
+    render(<App engineFactory={() => engine} />);
+    await user.click(screen.getByRole('button', { name: /open silhouette from song_data/i }));
+
+    expect(await screen.findByText(/Integration Song/i)).toBeInTheDocument();
+    expect(engine.loadedSongTrackCount).toBe(7);
+    expect(engine.selectedTrack).toBe('1');
+  });
+
+  it('reports invalid imported song JSON', async () => {
+    const user = userEvent.setup();
+    render(<App engineFactory={() => new FakeEngine()} />);
+
+    await user.upload(screen.getByLabelText('Song JSON track files'), new File(['{bad'], 'bad.json'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('bad.json is not valid JSON');
+  });
+
   it('loads a valid file and shows parsed metadata', async () => {
     const engine = new FakeEngine();
     const user = userEvent.setup();
@@ -156,5 +194,46 @@ describe('App integration', () => {
     expect(engine.lastPitchShift).toBe(5);
     expect(engine.lastVolume).toBe(55);
     expect(engine.lastTrackVolume).toEqual({ trackId: '0', volumePercent: 42 });
+  });
+
+  it('loads a YouTube video and connects the external media handler', async () => {
+    const engine = new FakeEngine();
+    const user = userEvent.setup();
+
+    const youtubeMediaFactory = vi.fn<(options: CreateYouTubeMediaOptions) => Promise<YouTubeMediaHandle>>(
+      async ({ onPositionChange }) => {
+        const handler: ExternalMediaHandler = {
+          backingTrackDuration: 90_000,
+          playbackRate: 1,
+          masterVolume: 1,
+          seekTo: vi.fn(),
+          play: vi.fn(),
+          pause: vi.fn()
+        };
+
+        onPositionChange(12_345);
+
+        return {
+          handler,
+          destroy: vi.fn()
+        };
+      }
+    );
+
+    render(<App engineFactory={() => engine} youtubeMediaFactory={youtubeMediaFactory} />);
+
+    const input = screen.getByLabelText(/drop guitar pro files here/i);
+    await user.upload(input, new File(['mock'], 'demo.gp5', { type: 'application/octet-stream' }));
+
+    await user.type(screen.getByLabelText(/youtube url or id/i), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    await user.click(screen.getByRole('button', { name: /load video/i }));
+
+    await waitFor(() => {
+      expect(youtubeMediaFactory).toHaveBeenCalled();
+      expect(engine.externalMediaHandler).not.toBeNull();
+      expect(engine.externalMediaPosition).toBe(12_345);
+    });
+
+    expect(screen.getByText(/2 sync points detected/i)).toBeInTheDocument();
   });
 });

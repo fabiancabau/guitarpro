@@ -1,6 +1,8 @@
 import type {
+  ExternalMediaHandler,
   LoopRange,
   PlaybackPosition,
+  ScoreMeta,
   ScoreSession,
   ScoreTrack,
   TabEngine,
@@ -25,11 +27,23 @@ type AlphaTabSettingsLike = {
   player: {
     scrollElement: string | HTMLElement;
     scrollMode: number;
+    playerMode?: number;
   };
+};
+
+type AlphaSynthOutputLike = {
+  handler?: ExternalMediaHandler | undefined;
+  updatePosition?: (currentTimeMs: number) => void;
+};
+
+type AlphaSynthLike = {
+  output?: AlphaSynthOutputLike;
 };
 
 type AlphaTabApiLike = {
   load: (scoreData: unknown, trackIndexes?: number[]) => boolean;
+  renderScore: (score: unknown, trackIndexes?: number[]) => void;
+  loadMidiForScore?: () => void;
   destroy: () => void;
   play: () => boolean;
   pause: () => void;
@@ -45,6 +59,8 @@ type AlphaTabApiLike = {
   isLooping: boolean;
   playbackSpeed: number;
   masterVolume: number;
+  playerState?: number | string;
+  player: AlphaSynthLike | null;
   scoreLoaded: EventEmitterLike<UnknownRecord>;
   renderFinished: EventEmitterLike<unknown>;
   playerPositionChanged: EventEmitterLike<UnknownRecord>;
@@ -60,6 +76,10 @@ type ScrollModeLike = {
 type AlphaTabModuleLike = {
   AlphaTabApi?: new (container: HTMLElement, settings: UnknownRecord) => AlphaTabApiLike;
   ScrollMode?: ScrollModeLike;
+  PlayerMode?: {
+    EnabledAutomatic: number;
+    EnabledExternalMedia: number;
+  };
 };
 
 const LOAD_TIMEOUT_MS = 15_000;
@@ -70,11 +90,21 @@ export class AlphaTabEngine implements TabEngine {
   private session: ScoreSession | null = null;
   private barStartTicks: number[] = [];
   private container: HTMLElement | null = null;
+  private attachPromise: Promise<void> | null = null;
   private isAutoscrollEnabled = true;
   private pitchShiftSemitones = 0;
   private unsubscribeHandlers: Array<() => void> = [];
   private pendingTrackId: string | null = null;
   private hasRenderedScore = false;
+  private externalMediaHandler: ExternalMediaHandler | null = null;
+  private tempoPercent = 100;
+  private volumePercent = 100;
+  private loopRange: LoopRange | null = null;
+  private trackVolumes = new Map<string, number>();
+  private playerMode = {
+    EnabledAutomatic: 1,
+    EnabledExternalMedia: 4
+  };
   private scrollMode = {
     Off: 0,
     Continuous: 1
@@ -84,35 +114,62 @@ export class AlphaTabEngine implements TabEngine {
     this.callbacks = callbacks;
   }
 
-  async attach(container: HTMLElement): Promise<void> {
+  attach(container: HTMLElement): Promise<void> {
     if (this.api && this.container === container) {
-      return;
+      return Promise.resolve();
     }
 
-    if (this.api && this.container !== container) {
+    if (this.attachPromise && this.container === container) {
+      return this.attachPromise;
+    }
+
+    if (this.container && this.container !== container) {
       this.destroy();
     }
 
-    const module = (await import('@coderline/alphatab')) as unknown as AlphaTabModuleLike;
-
-    if (!module.AlphaTabApi) {
-      throw new ReaderEngineError('ASSET_LOAD_FAILED', 'alphaTab constructor is unavailable.');
-    }
-
     this.container = container;
-    this.scrollMode = module.ScrollMode ?? this.scrollMode;
-    this.api = new module.AlphaTabApi(container, this.buildSettings(container));
-    this.applyAutoscrollSetting(this.api);
-    this.bindCoreEvents();
+    const pending = (async () => {
+      const module = (await import('@coderline/alphatab')) as unknown as AlphaTabModuleLike;
+      if (this.container !== container) return;
+      if (!module.AlphaTabApi) {
+        throw new ReaderEngineError('ASSET_LOAD_FAILED', 'alphaTab constructor is unavailable.');
+      }
+      this.scrollMode = module.ScrollMode ?? this.scrollMode;
+      this.playerMode = module.PlayerMode ?? this.playerMode;
+      this.api = new module.AlphaTabApi(container, this.buildSettings(container));
+      this.applyAutoscrollSetting(this.api);
+      this.bindCoreEvents();
+    })();
+    this.attachPromise = pending;
+    const clear = () => {
+      if (this.attachPromise === pending) this.attachPromise = null;
+    };
+    pending.then(clear, clear);
+    return pending;
   }
 
   async load(buffer: ArrayBuffer): Promise<ScoreSession> {
+    return this.loadSource((api) => this.awaitLoad(api, () => api.load(new Uint8Array(buffer))));
+  }
+
+  async loadSongsterrJson(tracks: unknown[], metadata: ScoreMeta = {}): Promise<ScoreSession> {
+    return this.loadSource(async (api) => {
+      const { parseSongsterrJson } = await import('@lib/songsterrJson');
+      const score = parseSongsterrJson(tracks, metadata);
+      return this.awaitLoad(api, () => api.renderScore(score));
+    });
+  }
+
+  private async loadSource(start: (api: AlphaTabApiLike) => Promise<ScoreSession>): Promise<ScoreSession> {
+    await this.attachPromise;
     const api = this.requireApi();
     this.hasRenderedScore = false;
     this.pendingTrackId = null;
+    this.loopRange = null;
+    this.trackVolumes.clear();
 
     try {
-      const session = await this.awaitLoad(api, new Uint8Array(buffer));
+      const session = await start(api);
       this.session = session;
       this.applyPitchShift(api);
       this.callbacks.onReady?.(session);
@@ -156,16 +213,20 @@ export class AlphaTabEngine implements TabEngine {
   }
 
   setTempo(percent: number): void {
+    this.tempoPercent = clampTempoPercent(percent);
     const api = this.requireApi();
-    api.playbackSpeed = clampTempoPercent(percent) / 100;
+    api.playbackSpeed = this.tempoPercent / 100;
   }
 
   setVolume(percent: number): void {
+    this.volumePercent = this.normalizeVolumePercent(percent);
     const api = this.requireApi();
-    api.masterVolume = this.normalizeVolumePercent(percent) / 100;
+    api.masterVolume = this.volumePercent / 100;
   }
 
   setTrackVolume(trackId: string, percent: number): void {
+    const normalizedPercent = this.normalizeVolumePercent(percent);
+    this.trackVolumes.set(trackId, normalizedPercent);
     const api = this.requireApi();
     const trackIndex = Number.parseInt(trackId, 10);
 
@@ -173,17 +234,19 @@ export class AlphaTabEngine implements TabEngine {
       return;
     }
 
-    api.changeTrackVolume(trackIndex, this.normalizeTrackVolumePercent(percent));
+    api.changeTrackVolume(trackIndex, this.normalizeTrackVolumePercent(normalizedPercent));
   }
 
   setLoop(range: LoopRange | null): void {
     const api = this.requireApi();
 
     if (!this.session) {
+      this.loopRange = null;
       return;
     }
 
     const normalized = normalizeLoopRange(range, this.session.length.bars);
+    this.loopRange = normalized;
 
     if (!normalized) {
       api.playbackRange = null;
@@ -199,14 +262,30 @@ export class AlphaTabEngine implements TabEngine {
   }
 
   selectTrack(trackId: string): void {
+    this.pendingTrackId = trackId;
     const api = this.requireApi();
 
     if (!this.hasRenderedScore) {
-      this.pendingTrackId = trackId;
       return;
     }
 
     this.renderTrackById(api, trackId);
+  }
+
+  setExternalMediaHandler(handler: ExternalMediaHandler | null): void {
+    this.externalMediaHandler = handler;
+
+    if (this.api) {
+      this.applyExternalMediaMode(this.api);
+    }
+  }
+
+  updateExternalMediaPosition(currentTimeMs: number): void {
+    const output = this.api?.player?.output;
+
+    if (typeof output?.updatePosition === 'function') {
+      output.updatePosition(Math.max(0, Math.round(currentTimeMs)));
+    }
   }
 
   private renderTrackById(api: AlphaTabApiLike, trackId: string): void {
@@ -237,11 +316,13 @@ export class AlphaTabEngine implements TabEngine {
     this.unsubscribeHandlers = [];
     this.api?.destroy();
     this.api = null;
+    this.attachPromise = null;
     this.session = null;
     this.barStartTicks = [];
     this.container = null;
     this.pendingTrackId = null;
     this.hasRenderedScore = false;
+    this.trackVolumes.clear();
   }
 
   private requireApi(): AlphaTabApiLike {
@@ -271,6 +352,9 @@ export class AlphaTabEngine implements TabEngine {
         soundFont: '/soundfont/sonivox.sf2',
         scrollElement: scrollContainer,
         scrollMode: this.resolveScrollMode(),
+        playerMode: this.externalMediaHandler
+          ? this.playerMode.EnabledExternalMedia
+          : this.playerMode.EnabledAutomatic,
         enableCursor: true,
         enableAnimatedBeatCursor: true,
         enableElementHighlighting: true,
@@ -279,10 +363,13 @@ export class AlphaTabEngine implements TabEngine {
     };
   }
 
-  private applyAutoscrollSetting(api: AlphaTabApiLike): void {
+  private applyAutoscrollSetting(api: AlphaTabApiLike, updateSettings = true): void {
     api.settings.player.scrollElement = this.container?.parentElement ?? this.container ?? api.settings.player.scrollElement;
     api.settings.player.scrollMode = this.resolveScrollMode();
-    api.updateSettings?.();
+
+    if (updateSettings) {
+      api.updateSettings?.();
+    }
   }
 
   private applyPitchShift(api: AlphaTabApiLike): void {
@@ -291,6 +378,65 @@ export class AlphaTabEngine implements TabEngine {
     }
 
     api.changeTrackTranspositionPitch(api.score.tracks, this.pitchShiftSemitones);
+  }
+
+  private applyExternalMediaMode(api: AlphaTabApiLike): void {
+    const expectedMode = this.externalMediaHandler
+      ? this.playerMode.EnabledExternalMedia
+      : this.playerMode.EnabledAutomatic;
+
+    const currentMode = api.settings.player.playerMode;
+    const currentTick = api.tickPosition;
+    const wasPlaying = this.resolvePlayingState({ state: api.playerState });
+
+    if (currentMode !== expectedMode) {
+      api.settings.player.playerMode = expectedMode;
+      api.updateSettings?.();
+
+      if (api.score && typeof api.loadMidiForScore === 'function') {
+        api.loadMidiForScore();
+      }
+    }
+
+    const output = api.player?.output;
+    if (output) {
+      output.handler = this.externalMediaHandler ?? undefined;
+    }
+
+    this.restorePlaybackConfiguration(api, currentTick);
+
+    if (wasPlaying) {
+      api.play();
+    }
+  }
+
+  private restorePlaybackConfiguration(api: AlphaTabApiLike, currentTick: number): void {
+    this.applyAutoscrollSetting(api, false);
+    this.applyPitchShift(api);
+    api.playbackSpeed = this.tempoPercent / 100;
+    api.masterVolume = this.volumePercent / 100;
+
+    if (this.loopRange && this.session) {
+      api.playbackRange = {
+        startTick: this.barToTick(this.loopRange.startBar),
+        endTick: this.barToTick(this.loopRange.endBar + 1)
+      };
+      api.isLooping = true;
+    } else {
+      api.playbackRange = null;
+      api.isLooping = false;
+    }
+
+    for (const [trackId, volumePercent] of this.trackVolumes) {
+      const trackIndex = Number.parseInt(trackId, 10);
+      if (Number.isFinite(trackIndex) && typeof api.changeTrackVolume === 'function') {
+        api.changeTrackVolume(trackIndex, this.normalizeTrackVolumePercent(volumePercent));
+      }
+    }
+
+    if (currentTick > 0) {
+      api.tickPosition = currentTick;
+    }
   }
 
   private resolveScrollMode(): number {
@@ -328,7 +474,7 @@ export class AlphaTabEngine implements TabEngine {
     this.unsubscribeHandlers.push(offPosition, offRenderFinished, offState, offError);
   }
 
-  private awaitLoad(api: AlphaTabApiLike, scoreBytes: Uint8Array): Promise<ScoreSession> {
+  private awaitLoad(api: AlphaTabApiLike, start: () => boolean | void): Promise<ScoreSession> {
     return new Promise((resolve, reject) => {
       let completed = false;
       let offLoaded: () => void = () => {};
@@ -364,8 +510,14 @@ export class AlphaTabEngine implements TabEngine {
         });
       }, LOAD_TIMEOUT_MS);
 
-      const started = api.load(scoreBytes);
-      if (!started) {
+      let started: boolean | void;
+      try {
+        started = start();
+      } catch (error) {
+        finish(() => reject(error));
+        return;
+      }
+      if (started === false) {
         finish(() => {
           reject(new ReaderEngineError('PARSE_FAILED', 'alphaTab could not start loading the score.'));
         });
@@ -435,6 +587,15 @@ export class AlphaTabEngine implements TabEngine {
         bars: masterBarsRaw.length,
         durationTicks,
         durationMs: this.toOptionalNumber(score.duration)
+      },
+      sync: {
+        syncPointCount: masterBarsRaw.reduce((count, bar) => {
+          const syncPoints = Array.isArray((bar as UnknownRecord).syncPoints)
+            ? ((bar as UnknownRecord).syncPoints as unknown[])
+            : [];
+
+          return count + syncPoints.length;
+        }, 0)
       }
     };
   }

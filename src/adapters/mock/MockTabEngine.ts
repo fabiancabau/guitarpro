@@ -1,6 +1,8 @@
 import type {
+  ExternalMediaHandler,
   LoopRange,
   PlaybackPosition,
+  ScoreMeta,
   ScoreSession,
   TabEngine,
   TabEngineCallbacks
@@ -22,6 +24,9 @@ const MOCK_SESSION: ScoreSession = {
     bars: 32,
     durationTicks: 32_000,
     durationMs: 120_000
+  },
+  sync: {
+    syncPointCount: 3
   }
 };
 
@@ -38,6 +43,7 @@ export class MockTabEngine implements TabEngine {
     MOCK_SESSION.tracks.map((track) => [track.id, track.volumePercent ?? 100])
   );
   private loop: LoopRange | null = null;
+  private externalMediaHandler: ExternalMediaHandler | null = null;
 
   setCallbacks(callbacks: TabEngineCallbacks): void {
     this.callbacks = callbacks;
@@ -54,6 +60,12 @@ export class MockTabEngine implements TabEngine {
     this.callbacks.onReady?.(MOCK_SESSION);
     this.callbacks.onPositionChange?.(this.positionPayload());
     return Promise.resolve(MOCK_SESSION);
+  }
+
+  loadSongsterrJson(tracks: unknown[], metadata?: ScoreMeta): Promise<ScoreSession> {
+    void tracks;
+    void metadata;
+    return this.load(new ArrayBuffer(0));
   }
 
   play(): void {
@@ -126,6 +138,15 @@ export class MockTabEngine implements TabEngine {
   selectTrack(trackId: string): void {
     void trackId;
     // mock rendering has no per-track visuals.
+  }
+
+  setExternalMediaHandler(handler: ExternalMediaHandler | null): void {
+    this.externalMediaHandler = handler;
+  }
+
+  updateExternalMediaPosition(currentTimeMs: number): void {
+    void this.externalMediaHandler;
+    void currentTimeMs;
   }
 
   destroy(): void {

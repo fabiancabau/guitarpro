@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { createTabEngine } from '@adapters/index';
+import { ReaderEngineError } from '@domain/errors';
 import type {
+  ExternalMediaHandler,
   LoopRange,
   PlaybackPosition,
-  ReaderEngineError,
+  ScoreMeta,
   ScoreSession,
   TabEngine,
   TabEngineFactory
@@ -180,19 +182,11 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
     [engine, state.isAutoscrollEnabled, state.pitchShiftSemitones, state.volumePercent]
   );
 
-  const openFile = useCallback(
-    async (file: File) => {
-      const validation = validateGuitarProFile(file);
-      if (!validation.ok) {
-        dispatch({ type: 'error', error: validation.error });
-        return;
-      }
-
-      dispatch({ type: 'loading', fileName: file.name });
-
+  const loadSession = useCallback(
+    async (fileName: string, load: () => Promise<ScoreSession>, preferredTrackId?: string) => {
+      dispatch({ type: 'loading', fileName });
       try {
-        const buffer = await readFileAsArrayBuffer(file);
-        const session = await engine.load(buffer);
+        const session = await load();
         engine.setPitchShift(state.pitchShiftSemitones);
         engine.setVolume(state.volumePercent);
 
@@ -200,7 +194,7 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
           engine.setTrackVolume(track.id, track.volumePercent ?? 100);
         }
 
-        const firstTrack = session.tracks[0]?.id ?? null;
+        const firstTrack = session.tracks.find((track) => track.id === preferredTrackId)?.id ?? session.tracks[0]?.id ?? null;
         if (firstTrack) {
           engine.selectTrack(firstTrack);
           dispatch({ type: 'track', trackId: firstTrack });
@@ -210,6 +204,41 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       }
     },
     [engine, state.pitchShiftSemitones, state.volumePercent]
+  );
+
+  const openFile = useCallback(
+    async (file: File) => {
+      const validation = validateGuitarProFile(file);
+      if (!validation.ok) {
+        dispatch({ type: 'error', error: validation.error });
+        return;
+      }
+      await loadSession(file.name, async () => engine.load(await readFileAsArrayBuffer(file)));
+    },
+    [engine, loadSession]
+  );
+
+  const openSongsterrJson = useCallback(
+    async (tracks: unknown[], fileName: string, metadata: ScoreMeta = {}, preferredTrackId?: string) => {
+      await loadSession(fileName, () => engine.loadSongsterrJson(tracks, metadata), preferredTrackId);
+    },
+    [engine, loadSession]
+  );
+
+  const openSongsterrFiles = useCallback(
+    async (files: File[]) => {
+      await loadSession(`${files.length} song JSON track${files.length === 1 ? '' : 's'}`, async () => {
+        const tracks = await Promise.all(files.map(async (file) => {
+          try {
+            return JSON.parse(await file.text()) as unknown;
+          } catch (error) {
+            throw new ReaderEngineError('PARSE_FAILED', `${file.name} is not valid JSON.`, error);
+          }
+        }));
+        return engine.loadSongsterrJson(tracks);
+      });
+    },
+    [engine, loadSession]
   );
 
   const togglePlayback = useCallback(() => {
@@ -292,6 +321,20 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
     [engine]
   );
 
+  const setExternalMediaHandler = useCallback(
+    (handler: ExternalMediaHandler | null) => {
+      engine.setExternalMediaHandler(handler);
+    },
+    [engine]
+  );
+
+  const updateExternalMediaPosition = useCallback(
+    (currentTimeMs: number) => {
+      engine.updateExternalMediaPosition(currentTimeMs);
+    },
+    [engine]
+  );
+
   const clearError = useCallback(() => {
     dispatch({ type: 'clear-error' });
   }, []);
@@ -301,6 +344,8 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       state,
       attachContainer,
       openFile,
+      openSongsterrJson,
+      openSongsterrFiles,
       togglePlayback,
       seekByProgress,
       setAutoscrollEnabled,
@@ -310,19 +355,25 @@ export function useTabReader(options: UseTabReaderOptions = {}) {
       setTrackVolume,
       setLoopRange,
       selectTrack,
+      setExternalMediaHandler,
+      updateExternalMediaPosition,
       clearError
     }),
     [
       attachContainer,
       clearError,
       openFile,
+      openSongsterrJson,
+      openSongsterrFiles,
       seekByProgress,
       selectTrack,
       setAutoscrollEnabled,
+      setExternalMediaHandler,
       setPitchShiftSemitones,
       setLoopRange,
       setTempoPercent,
       setTrackVolume,
+      updateExternalMediaPosition,
       setVolumePercent,
       state,
       togglePlayback

@@ -51,6 +51,22 @@ body {
   flex-wrap: wrap;
 }
 
+.hero__song-loader {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+  font-size: 0.86rem;
+  color: #45637a;
+}
+
+.hero__song-loader p {
+  width: 100%;
+  margin: 0;
+  color: #8c2d27;
+}
+
 .hero__eyebrow {
   margin: 0;
   text-transform: uppercase;
@@ -78,7 +94,8 @@ body {
 .track-mixer,
 .score-viewport,
 .file-dropzone,
-.error-banner {
+.error-banner,
+.video-sync {
   border: 1px solid #c3d3e0;
   border-radius: 0.9rem;
   background: rgba(255, 255, 255, 0.93);
@@ -89,7 +106,8 @@ body {
 .control-group,
 .track-mixer,
 .score-viewport,
-.file-dropzone {
+.file-dropzone,
+.video-sync {
   padding: 0.85rem;
 }
 
@@ -217,6 +235,60 @@ body {
   gap: 0.25rem;
   color: #41596f;
   font-size: 0.86rem;
+}
+
+.video-sync {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.video-sync__header h2 {
+  margin: 0.15rem 0 0;
+}
+
+.video-sync__hint,
+.video-sync__empty {
+  margin: 0;
+  color: #4a637a;
+  font-size: 0.88rem;
+}
+
+.video-sync__form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.video-sync__actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.video-sync__error {
+  margin: 0;
+  color: #8c2d27;
+  font-size: 0.88rem;
+}
+
+.video-sync__player-shell {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.video-sync__player {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  min-height: 180px;
+  overflow: hidden;
+  border-radius: 0.8rem;
+  border: 1px solid #d6e2ec;
+  background: linear-gradient(180deg, rgba(23, 41, 58, 0.96), rgba(6, 13, 21, 0.98));
+}
+
+.video-sync__player iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .transport-controls__loop {

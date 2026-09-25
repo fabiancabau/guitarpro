@@ -19,15 +19,18 @@ export interface ScoreLength {
   durationTicks?: number;
 }
 
-export interface ScoreSession {
-  meta: ScoreMeta;
-  tracks: ScoreTrack[];
-  length: ScoreLength;
-}
-
 export interface LoopRange {
   startBar: number;
   endBar: number;
+}
+
+export interface ExternalMediaHandler {
+  backingTrackDuration: number;
+  playbackRate: number;
+  masterVolume: number;
+  seekTo(time: number): void;
+  play(): void;
+  pause(): void;
 }
 
 export interface PlaybackPosition {
@@ -36,4 +39,15 @@ export interface PlaybackPosition {
   progress: number;
   barIndex?: number;
   beatIndex?: number;
+}
+
+export interface ScoreSyncInfo {
+  syncPointCount: number;
+}
+
+export interface ScoreSession {
+  meta: ScoreMeta;
+  tracks: ScoreTrack[];
+  length: ScoreLength;
+  sync: ScoreSyncInfo;
 }
