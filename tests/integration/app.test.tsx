@@ -140,7 +140,7 @@ describe('App integration', () => {
     await user.upload(input, file);
 
     expect(await screen.findByText(/Integration Song/i)).toBeInTheDocument();
-    expect(screen.getByText(/Tracks:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Loaded tab metadata')).toHaveTextContent(/bars/i);
     expect(engine.selectedTrack).toBe('0');
     expect(screen.getByLabelText(/volume \(30%\)/i)).toBeInTheDocument();
   });
@@ -225,6 +225,7 @@ describe('App integration', () => {
     const input = screen.getByLabelText(/drop guitar pro files here/i);
     await user.upload(input, new File(['mock'], 'demo.gp5', { type: 'application/octet-stream' }));
 
+    await user.click(screen.getByRole('button', { name: 'YouTube sync' }));
     await user.type(screen.getByLabelText(/youtube url or id/i), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     await user.click(screen.getByRole('button', { name: /load video/i }));
 

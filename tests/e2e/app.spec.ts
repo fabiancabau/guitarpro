@@ -7,13 +7,13 @@ test.describe('Guitar Pro reader app', () => {
     await page.getByRole('button', { name: 'Load Mock GP File' }).click();
 
     await expect(page.getByText('Mock Song')).toBeVisible();
-    await expect(page.getByRole('slider', { name: 'Playhead' })).toBeVisible();
-    await expect(page.getByLabel(/volume \(/i)).toBeVisible();
+    await expect(page.getByRole('slider', { name: 'Playback timeline' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Master volume' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Play' }).click();
-    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
 
-    await page.getByRole('slider', { name: 'Playhead' }).evaluate((element) => {
+    await page.getByRole('slider', { name: 'Playback timeline' }).evaluate((element) => {
       const input = element as HTMLInputElement;
       input.value = '500';
       input.dispatchEvent(new Event('input', { bubbles: true }));

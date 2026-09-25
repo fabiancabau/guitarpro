@@ -11,6 +11,7 @@ export interface ScoreTrack {
   volumePercent?: number;
   tuning?: string[];
   instrument?: string;
+  isPercussion?: boolean;
 }
 
 export interface ScoreLength {
@@ -37,6 +38,8 @@ export interface PlaybackPosition {
   currentTick: number;
   endTick: number;
   progress: number;
+  currentTimeMs?: number;
+  endTimeMs?: number;
   barIndex?: number;
   beatIndex?: number;
 }

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { parseYouTubeVideoId } from '@lib/youtube';
+import { CloseIcon, VideoIcon } from './Icons';
 
 interface YouTubeSyncPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
   activeVideoId: string | null;
   hasSession: boolean;
   syncPointCount: number;
@@ -25,6 +28,8 @@ function syncHint(hasSession: boolean, syncPointCount: number): string {
 }
 
 export function YouTubeSyncPanel({
+  isOpen,
+  onClose,
   activeVideoId,
   hasSession,
   syncPointCount,
@@ -46,14 +51,21 @@ export function YouTubeSyncPanel({
   const hint = useMemo(() => syncHint(hasSession, syncPointCount), [hasSession, syncPointCount]);
 
   return (
-    <section className="video-sync" aria-label="YouTube sync">
+    // Kept mounted while closed so a loaded video keeps playing in sync.
+    <section className="video-sync" aria-label="YouTube sync" data-open={isOpen}>
       <div className="video-sync__header">
+        <span className="video-sync__badge" aria-hidden="true">
+          <VideoIcon size={18} />
+        </span>
         <div>
-          <p className="hero__eyebrow">YouTube Sync</p>
-          <h2>External video</h2>
+          <p className="eyebrow">YouTube sync</p>
+          <h2>Play along with a video</h2>
         </div>
-        <p className="video-sync__hint">{hint}</p>
+        <button type="button" className="icon-button" aria-label="Close YouTube sync" onClick={onClose}>
+          <CloseIcon size={18} />
+        </button>
       </div>
+      <p className="video-sync__hint">{hint}</p>
 
       <form
         className="video-sync__form"
@@ -70,8 +82,8 @@ export function YouTubeSyncPanel({
           onLoadVideo(videoId);
         }}
       >
-        <label className="control-group">
-          <span className="control-group__label">YouTube URL or ID</span>
+        <label className="field">
+          <span className="field__label">YouTube URL or ID</span>
           <input
             type="text"
             value={url}
@@ -86,12 +98,12 @@ export function YouTubeSyncPanel({
         </label>
 
         <div className="video-sync__actions">
-          <button type="submit" className="primary-button">
+          <button type="submit" className="button button--accent">
             {activeVideoId ? 'Update video' : 'Load video'}
           </button>
           <button
             type="button"
-            className="ghost-button"
+            className="button button--ghost"
             disabled={!activeVideoId && url.trim().length === 0}
             onClick={() => {
               setUrl('');

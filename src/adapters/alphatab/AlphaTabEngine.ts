@@ -342,7 +342,16 @@ export class AlphaTabEngine implements TabEngine {
       },
       display: {
         layoutMode: 'page',
-        staveProfile: 'scoretab'
+        staveProfile: 'scoretab',
+        padding: [36, 32, 36, 56],
+        resources: {
+          mainGlyphColor: '#191b21',
+          secondaryGlyphColor: 'rgba(25, 27, 33, 0.55)',
+          scoreInfoColor: '#191b21',
+          staffLineColor: '#c9c3b6',
+          barSeparatorColor: '#a8a295',
+          barNumberColor: '#d9572b'
+        }
       },
       notation: {
         notationMode: 'guitarpro'
@@ -352,6 +361,8 @@ export class AlphaTabEngine implements TabEngine {
         soundFont: '/soundfont/sonivox.sf2',
         scrollElement: scrollContainer,
         scrollMode: this.resolveScrollMode(),
+        // Keep some of the previous system visible above the playing one.
+        scrollOffsetY: -96,
         playerMode: this.externalMediaHandler
           ? this.playerMode.EnabledExternalMedia
           : this.playerMode.EnabledAutomatic,
@@ -544,6 +555,8 @@ export class AlphaTabEngine implements TabEngine {
       currentTick,
       endTick,
       progress: normalizeProgress(endTick > 0 ? currentTick / endTick : 0),
+      currentTimeMs: this.toOptionalNumber(payload.currentTime),
+      endTimeMs: this.toOptionalNumber(payload.endTime),
       barIndex: this.resolveBarIndex(currentTick),
       beatIndex: undefined
     };
@@ -619,7 +632,8 @@ export class AlphaTabEngine implements TabEngine {
       name: this.toOptionalString(track.name) ?? `Track ${index + 1}`,
       volumePercent: this.toTrackVolumePercent(this.toOptionalNumber(playbackInfo.volume)),
       tuning,
-      instrument: program !== undefined ? `Program ${program}` : undefined
+      instrument: program !== undefined ? `Program ${program}` : undefined,
+      isPercussion: firstStaff?.isPercussion === true
     };
   }
 
