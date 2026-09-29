@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, type ReactNode } from 'react';
 
 interface ScoreViewportProps {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -8,14 +8,18 @@ interface ScoreViewportProps {
 }
 
 export function ScoreViewport({ status, hasSession, emptyState, onContainerReady }: ScoreViewportProps) {
-  const mountRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node) {
-        onContainerReady(node);
-      }
-    },
-    [onContainerReady]
-  );
+  // The ref callback must stay stable: a new identity makes React re-run it on every render, and
+  // playback re-renders many times per second, which would re-attach and re-configure the engine.
+  const onContainerReadyRef = useRef(onContainerReady);
+  useLayoutEffect(() => {
+    onContainerReadyRef.current = onContainerReady;
+  });
+
+  const mountRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      onContainerReadyRef.current(node);
+    }
+  }, []);
 
   return (
     <main className={`score-viewport${hasSession ? ' has-session' : ''}`}>

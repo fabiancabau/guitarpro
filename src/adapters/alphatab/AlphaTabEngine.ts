@@ -388,7 +388,21 @@ export class AlphaTabEngine implements TabEngine {
       return;
     }
 
-    api.changeTrackTranspositionPitch(api.score.tracks, this.pitchShiftSemitones);
+    // Drum notes select kit pieces rather than pitches, so transposing them swaps instruments.
+    const tracks = api.score.tracks as UnknownRecord[];
+    const melodic = tracks.filter((track) => !this.isPercussionTrack(track));
+    const percussion = tracks.filter((track) => this.isPercussionTrack(track));
+
+    api.changeTrackTranspositionPitch(melodic, this.pitchShiftSemitones);
+    if (percussion.length > 0) {
+      api.changeTrackTranspositionPitch(percussion, 0);
+    }
+  }
+
+  private isPercussionTrack(track: UnknownRecord): boolean {
+    const staves = Array.isArray(track.staves) ? (track.staves as UnknownRecord[]) : [];
+    const playbackInfo = (track.playbackInfo ?? {}) as UnknownRecord;
+    return staves.some((staff) => staff.isPercussion === true) || playbackInfo.primaryChannel === 9;
   }
 
   private applyExternalMediaMode(api: AlphaTabApiLike): void {

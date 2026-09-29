@@ -16,6 +16,7 @@ class FakeEngine implements TabEngine {
   externalMediaHandler: ExternalMediaHandler | null = null;
   externalMediaPosition = 0;
   loadedSongTrackCount = 0;
+  attachCount = 0;
 
   setCallbacks(callbacks: TabEngineCallbacks): void {
     this.callbacks = callbacks;
@@ -23,6 +24,7 @@ class FakeEngine implements TabEngine {
 
   attach(container: HTMLElement): Promise<void> {
     void container;
+    this.attachCount += 1;
     return Promise.resolve();
   }
 
@@ -194,6 +196,8 @@ describe('App integration', () => {
     expect(engine.lastPitchShift).toBe(5);
     expect(engine.lastVolume).toBe(55);
     expect(engine.lastTrackVolume).toEqual({ trackId: '0', volumePercent: 42 });
+    // Re-renders during playback must not re-attach (and re-configure) the engine.
+    expect(engine.attachCount).toBe(1);
   });
 
   it('loads a YouTube video and connects the external media handler', async () => {
